@@ -1,8 +1,10 @@
 const XLSX = require('node-xlsx')
 const puppeteer = require('puppeteer')
 const mysql = require('mysql')
-var schoolName = '重庆师范大学'
+var schoolName = '重庆文理学院'
 var excelFilePath = `./${schoolName}.xlsx`
+
+
 const browser = puppeteer.launch({
     headless: false,
     defaultView: null,
@@ -20,29 +22,31 @@ const browser = puppeteer.launch({
 })
 
 
+var conn = mysql.createConnection({
+        host: 'localhost',
+        user: 'root',
+        password: '',
+        database: 'teacher'
+    })
+conn.connect()
+
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 function saveData(schoolName, academy, name, title, faculty, direction, curl) {
-    var conn = mysql.createConnection({
-        host: 'localhost',
-        user: 'root',
-        password: '123',
-        database: 'zyr'
-    })
 
-    conn.connect()
-    // if(err){
+    // conn.connect(function (err){if(err){
     //     console.error('error connecting: ' + err.stack);
     //     return;
-    // }
+    // }})
+
     // console.log('connected as id ' + conn.threadID)
 
     let sql = `INSERT INTO teacher(school, faculty, name, title, subject, curriculum, introduction)
                values ('${schoolName}', '${academy}', '${name}', '${title}', '${faculty}', '${direction}', '${curl}')`
     conn.query(sql)
-    conn.end()
+
 }
 
 
@@ -92,15 +96,24 @@ async function judgeUrl1(s, page, url) {
 async function one(content, i) {
     if (content.length === 1) {
         content = content[0]
-        if(content === undefined){content = "";}
+        if(content === undefined || content === null){content = "";} //避免储存的值为null
     }else {content = content[i];
-    if(content === undefined){content = "";}}
+    if(content === undefined || content === null){content = "";}}
     return content
 }
 
 
+async function judgeSel(content, page){
+    // console.log((await getTexts(content, page)))
+    if(content && (await getTexts(content, page)).length === 0)
+{
+        console.log(`Error: Selector is wrong!! ${content}`)
+    }
+}
+
 async function getData(s, page) {
     /* 解析，获取数据 */
+    let temp = []
     var academy = s[0];
     var name, title, subject, direction, curl = [];
     names = await getTexts(s[3], page);
@@ -108,6 +121,10 @@ async function getData(s, page) {
     subjects = await getTexts(s[5], page);
     directions = await getTexts(s[6], page);
     curls = await href(s[3], page);
+    temp.push(s[3], s[4], s[5], s[6])
+    for(const t of temp){
+        await judgeSel(t, page);
+    }
     for (let i = 0; i < names.length; i++) {
         name = names[i];
         title = await one(titles, i);
@@ -135,10 +152,13 @@ async function getData(s, page) {
             await page.goto(a, {waitUntil: 'networkidle2'}).catch(async e => console.log(e));
             await judgeUrl1(s[3], page, a);
             await getData(s, page);
-            await sleep(700);
+            await sleep(600);
         }
     }
     // await (await browser).close();
 })()
+
+
+
 
 
